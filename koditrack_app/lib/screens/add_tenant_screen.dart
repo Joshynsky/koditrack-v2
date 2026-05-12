@@ -145,7 +145,7 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             DropdownButtonFormField<String>(
-              value: _selectedUnitId,
+              initialValue: _selectedUnitId,
               decoration: const InputDecoration(
                 labelText: 'Assign to Unit',
                 border: OutlineInputBorder(),

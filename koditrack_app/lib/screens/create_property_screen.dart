@@ -78,7 +78,7 @@ class _CreatePropertyScreenState extends State<CreatePropertyScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedType,
+              initialValue: _selectedType,
               decoration: const InputDecoration(
                 labelText: 'Property Type',
                 border: OutlineInputBorder(),
@@ -102,7 +102,7 @@ class _CreatePropertyScreenState extends State<CreatePropertyScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: _rentDueDay,
+              initialValue: _rentDueDay,
               decoration: const InputDecoration(
                 labelText: 'Rent Due Day',
                 border: OutlineInputBorder(),
