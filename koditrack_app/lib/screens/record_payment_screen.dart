@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/tenant.dart';
 import '../providers/property_provider.dart';
+<<<<<<< HEAD
 import '../services/whatsapp_service.dart';
+=======
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
 
 class RecordPaymentScreen extends StatefulWidget {
   final Tenant tenant;
@@ -58,9 +61,13 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
       widget.onPaymentRecorded?.call();
 
+<<<<<<< HEAD
       if (mounted) {
         _showReceiptDialog(amount);
       }
+=======
+      if (mounted) Navigator.pop(context);
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -91,6 +98,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     super.dispose();
   }
 
+<<<<<<< HEAD
   void _showReceiptDialog(double amountPaid) {
     showDialog(
       context: context,
@@ -140,6 +148,8 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     );
   }
 
+=======
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
   @override
   Widget build(BuildContext context) {
     final balance = widget.tenant.openingBalance;
@@ -229,7 +239,11 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
             // Payment method
             DropdownButtonFormField<String>(
+<<<<<<< HEAD
               initialValue: _paymentMethod,
+=======
+              value: _paymentMethod,
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
               decoration: const InputDecoration(
                 labelText: 'Payment Method',
                 border: OutlineInputBorder(),

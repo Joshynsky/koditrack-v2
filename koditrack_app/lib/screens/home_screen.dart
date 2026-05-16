@@ -4,8 +4,11 @@ import '../models/property.dart';
 import '../providers/property_provider.dart';
 import 'create_property_screen.dart';
 import 'property_detail_screen.dart';
+<<<<<<< HEAD
 import '../services/whatsapp_service.dart';
 import '../models/tenant.dart';
+=======
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,13 +18,17 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
+<<<<<<< HEAD
   double _expected = 0;
   double _received = 0;
 
+=======
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+<<<<<<< HEAD
       _loadData();
     });
   }
@@ -151,13 +158,29 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
+=======
+      context.read<PropertyProvider>().fetchProperties();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Koditrack'), centerTitle: true),
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           await Navigator.push(
             context,
             MaterialPageRoute(builder: (_) => const CreatePropertyScreen()),
           );
+<<<<<<< HEAD
           if (mounted) _loadData();
+=======
+          if (mounted) {
+            context.read<PropertyProvider>().fetchProperties();
+          }
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
         },
         icon: const Icon(Icons.add),
         label: const Text('Add Property'),
@@ -168,6 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
             return const Center(child: CircularProgressIndicator());
           }
 
+<<<<<<< HEAD
           return RefreshIndicator(
             onRefresh: _loadData,
             child: ListView(
@@ -187,11 +211,19 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
           );
+=======
+          if (provider.properties.isEmpty) {
+            return _buildEmptyState();
+          }
+
+          return _buildPropertyList(provider.properties);
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
         },
       ),
     );
   }
 
+<<<<<<< HEAD
   Widget _buildMoneyGauge() {
     final progress = _expected > 0 ? (_received / _expected).clamp(0.0, 1.0) : 0.0;
     final percentage = (progress * 100).round();
@@ -272,6 +304,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+=======
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
   Widget _buildEmptyState() {
     return Center(
       child: Padding(
@@ -282,10 +316,16 @@ class _HomeScreenState extends State<HomeScreen> {
             Icon(
               Icons.apartment_outlined,
               size: 80,
+<<<<<<< HEAD
               color: Theme.of(context)
                   .colorScheme
                   .primary
                   .withValues(alpha: 0.4),
+=======
+              color: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: 0.4),
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
             ),
             const SizedBox(height: 16),
             Text(
@@ -303,6 +343,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+<<<<<<< HEAD
 }
 
 class _GaugeStat extends StatelessWidget {
@@ -333,6 +374,20 @@ class _GaugeStat extends StatelessWidget {
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
+=======
+
+  Widget _buildPropertyList(List<Property> properties) {
+    return RefreshIndicator(
+      onRefresh: () => context.read<PropertyProvider>().fetchProperties(),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: properties.length,
+        itemBuilder: (context, index) {
+          final property = properties[index];
+          return _PropertyCard(property: property);
+        },
+      ),
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
     );
   }
 }
@@ -373,13 +428,21 @@ class _PropertyCard extends StatelessWidget {
             MaterialPageRoute(
               builder: (_) => PropertyDetailScreen(property: property),
             ),
+<<<<<<< HEAD
           ).then((_) {
             // Refresh when coming back
             final provider = context.read<PropertyProvider>();
             provider.fetchProperties();
           });
+=======
+          );
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
         },
       ),
     );
   }
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea

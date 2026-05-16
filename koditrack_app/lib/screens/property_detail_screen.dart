@@ -88,7 +88,11 @@ class _PropertyDetailScreenState extends State<PropertyDetailScreen> {
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
+<<<<<<< HEAD
                       initialValue: unitType,
+=======
+                      value: unitType,
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
                       decoration: const InputDecoration(
                         labelText: 'Unit Type',
                         border: OutlineInputBorder(),

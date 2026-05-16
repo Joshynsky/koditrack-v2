@@ -3,7 +3,10 @@ import '../models/tenant.dart';
 import '../models/unit.dart';
 import 'record_payment_screen.dart';
 import 'transaction_history_screen.dart';
+<<<<<<< HEAD
 import '../services/whatsapp_service.dart';
+=======
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
 
 class TenantProfileScreen extends StatelessWidget {
   final Tenant tenant;
@@ -229,6 +232,7 @@ class TenantProfileScreen extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
+<<<<<<< HEAD
             // WhatsApp buttons
             if (tenant.whatsappEnabled) ...[
               // Send Reminder
@@ -323,6 +327,24 @@ class TenantProfileScreen extends StatelessWidget {
                 ),
               ),
             ],
+=======
+            // WhatsApp nudge button
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: FilledButton.tonalIcon(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('WhatsApp reminders coming soon!'),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.thumb_up),
+                label: const Text('Send WhatsApp Nudge'),
+              ),
+            ),
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
           ],
         ),
       ),

@@ -248,6 +248,7 @@ class PropertyProvider extends ChangeNotifier {
       await fetchTenants(_currentPropertyId!);
     }
   }
+<<<<<<< HEAD
 
   // ============================================
   // DASHBOARD / MONEY GAUGE
@@ -293,4 +294,6 @@ class PropertyProvider extends ChangeNotifier {
       'received': received,
     };
   }
+=======
+>>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
 }
