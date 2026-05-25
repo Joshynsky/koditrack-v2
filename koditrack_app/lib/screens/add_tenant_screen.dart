@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/unit.dart';
 import '../providers/property_provider.dart';
+import '../providers/settings_provider.dart';
 
 class AddTenantScreen extends StatefulWidget {
   final String propertyId;
@@ -36,6 +37,12 @@ class _AddTenantScreenState extends State<AddTenantScreen> {
     super.initState();
     _selectedUnitId = widget.preSelectedUnitId;
     _loadVacantUnits();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final profile = context.read<SettingsProvider>().profile;
+      if (profile != null) {
+        setState(() => _whatsappEnabled = profile.defaultWhatsappEnabled);
+      }
+    });
   }
 
   Future<void> _loadVacantUnits() async {

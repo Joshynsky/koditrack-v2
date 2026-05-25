@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/tenant.dart';
 import '../providers/property_provider.dart';
-<<<<<<< HEAD
 import '../services/whatsapp_service.dart';
-=======
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
 
 class RecordPaymentScreen extends StatefulWidget {
   final Tenant tenant;
@@ -31,6 +28,8 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
   final _paymentMethods = ['M-Pesa', 'Cash', 'Bank Transfer', 'Other'];
 
   Future<void> _save() async {
+    if (_saving) return;
+
     if (_amountController.text.trim().isEmpty) {
       ScaffoldMessenger.of(
         context,
@@ -49,25 +48,46 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     setState(() => _saving = true);
 
     try {
+      // Auto-generate reference for cash payments if none provided
+      String? reference = _referenceController.text.trim().isEmpty
+          ? null
+          : _referenceController.text.trim();
+
+      if (reference == null && _paymentMethod == 'Cash') {
+        final now = DateTime.now();
+        final datePart =
+            '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+        final timePart =
+            '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+        final initials = widget.tenant.name
+            .split(' ')
+            .take(2)
+            .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
+            .join();
+        reference = 'CASH-$initials-$datePart-$timePart';
+      }
+
       await context.read<PropertyProvider>().recordPayment(
         tenantId: widget.tenant.id,
         amount: amount,
         paymentDate: _paymentDate,
         paymentMethod: _paymentMethod,
-        reference: _referenceController.text.trim().isEmpty
-            ? null
-            : _referenceController.text.trim(),
+        reference: reference,
       );
 
       widget.onPaymentRecorded?.call();
 
-<<<<<<< HEAD
       if (mounted) {
-        _showReceiptDialog(amount);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment recorded successfully'),
+            duration: Duration(seconds: 1),
+          ),
+        );
+        await Future.delayed(const Duration(milliseconds: 800));
+        _showReceiptDialog(amount, reference);
       }
-=======
       if (mounted) Navigator.pop(context);
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -75,7 +95,9 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         ).showSnackBar(SnackBar(content: Text('Failed to record payment: $e')));
       }
     } finally {
-      if (mounted) setState(() => _saving = false);
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) setState(() => _saving = false);
+      });
     }
   }
 
@@ -98,8 +120,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     super.dispose();
   }
 
-<<<<<<< HEAD
-  void _showReceiptDialog(double amountPaid) {
+  void _showReceiptDialog(double amountPaid, String? reference) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -108,22 +129,20 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(ctx); // close dialog
-              Navigator.pop(context); // close screen
+              Navigator.pop(ctx);
+              Navigator.pop(context);
             },
             child: const Text('No, thanks'),
           ),
           FilledButton.icon(
             onPressed: () async {
-              Navigator.pop(ctx); // close dialog
+              Navigator.pop(ctx);
               
               final message = WhatsAppService.receiptMessage(
                 name: widget.tenant.name,
                 amountPaid: amountPaid,
                 newBalance: widget.tenant.openingBalance - amountPaid,
-                reference: _referenceController.text.trim().isEmpty
-                    ? null
-                    : _referenceController.text.trim(),
+                reference: reference,
               );
 
               final success = await WhatsAppService.sendMessage(
@@ -132,7 +151,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
               );
 
               if (mounted) {
-                Navigator.pop(context); // close screen
+                Navigator.pop(context);
                 if (!success) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Could not open WhatsApp')),
@@ -148,8 +167,6 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
     );
   }
 
-=======
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
   @override
   Widget build(BuildContext context) {
     final balance = widget.tenant.openingBalance;
@@ -239,11 +256,7 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
 
             // Payment method
             DropdownButtonFormField<String>(
-<<<<<<< HEAD
               initialValue: _paymentMethod,
-=======
-              value: _paymentMethod,
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
               decoration: const InputDecoration(
                 labelText: 'Payment Method',
                 border: OutlineInputBorder(),
@@ -270,16 +283,35 @@ class _RecordPaymentScreenState extends State<RecordPaymentScreen> {
             ),
             const SizedBox(height: 24),
 
-            // Save button
+                        // Save button
             SizedBox(
               height: 48,
               child: FilledButton(
                 onPressed: _saving ? null : _save,
+                style: FilledButton.styleFrom(
+                  backgroundColor: _saving
+                      ? Colors.grey.shade300
+                      : Theme.of(context).colorScheme.primary,
+                  foregroundColor: _saving
+                      ? Colors.grey.shade500
+                      : Colors.white,
+                ),
                 child: _saving
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.grey,
+                            ),
+                          ),
+                          SizedBox(width: 10),
+                          Text('Recording...',
+                              style: TextStyle(color: Colors.grey)),
+                        ],
                       )
                     : const Text('Record Payment'),
               ),

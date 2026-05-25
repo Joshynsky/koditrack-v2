@@ -1,357 +1,290 @@
 import 'package:flutter/material.dart';
 import '../models/tenant.dart';
 import '../models/unit.dart';
+import '../theme/koditrack_theme.dart';
 import 'record_payment_screen.dart';
 import 'transaction_history_screen.dart';
-<<<<<<< HEAD
 import '../services/whatsapp_service.dart';
-=======
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
 
 class TenantProfileScreen extends StatelessWidget {
   final Tenant tenant;
   final Unit? unit;
   final int rentDueDay;
+  final String? propertyName;
+  final String? paymentInstructions;
 
   const TenantProfileScreen({
     super.key,
     required this.tenant,
     this.unit,
     required this.rentDueDay,
+    this.propertyName,
+    this.paymentInstructions,
   });
 
   @override
   Widget build(BuildContext context) {
-    final balance =
-        tenant.openingBalance; // Will be updated when payments exist
-    final balanceColor = balance <= 0 ? Colors.green : Colors.red;
+    final colors = context.kt;
+    final balance = tenant.openingBalance;
+    final monthlyBill = tenant.totalMonthlyBill;
+    final owesMoreThanMonth = balance > monthlyBill;
+
+    final Color balanceBg;
+    final String statusText;
+    final Color statusColor;
+
+    if (balance <= 0) {
+      balanceBg = colors.brandGreenLight;
+      statusText = 'All paid up';
+      statusColor = colors.brandGreen;
+    } else if (owesMoreThanMonth) {
+      balanceBg = colors.accentRedLight;
+      statusText = 'Overdue';
+      statusColor = colors.accentRed;
+    } else {
+      balanceBg = colors.accentAmberLight;
+      statusText = 'Partially paid';
+      statusColor = colors.accentAmber;
+    }
+
+    final initials = tenant.name
+        .split(' ')
+        .take(2)
+        .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
+        .join();
 
     return Scaffold(
-      appBar: AppBar(title: Text(tenant.name)),
+      backgroundColor: colors.pageBackground,
+      appBar: AppBar(
+        title: const Text('Tenant Profile'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Profile header
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    CircleAvatar(
-                      radius: 40,
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
+            // ── Profile header ──
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colors.cardBackground,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.borderSubtle),
+              ),
+              child: Column(
+                children: [
+                  CircleAvatar(
+                    radius: 42,
+                    backgroundColor: colors.brandGreenLight,
+                    child: Text(
+                      initials,
+                      style: TextStyle(
+                        fontSize: 34,
+                        fontWeight: FontWeight.bold,
+                        color: colors.brandGreen,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(tenant.name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+                  if (unit != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: colors.chipBackground,
+                        borderRadius: BorderRadius.circular(99),
+                      ),
                       child: Text(
-                        tenant.name[0].toUpperCase(),
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
+                        'Unit ${unit!.unitNumber}${unit!.block != null ? ' · Block ${unit!.block}' : ''} · Floor ${unit!.floor ?? '?'}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            // ── Balance card ──
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colors.cardBackground,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.borderSubtle),
+              ),
+              child: Column(
+                children: [
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: balanceBg,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Column(
+                      children: [
+                        Text('Current Balance',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor.withValues(alpha: 0.8))),
+                        const SizedBox(height: 6),
+                        Text('KES ${balance.toStringAsFixed(0)}',
+                            style: TextStyle(fontSize: 34, fontWeight: FontWeight.w700, color: statusColor)),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: statusColor.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(99),
+                          ),
+                          child: Text(statusText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor)),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _MiniStat(label: 'Monthly', value: 'KES ${monthlyBill.toStringAsFixed(0)}'),
+                      Container(width: 1, height: 24, color: colors.borderSubtle),
+                      _MiniStat(label: 'Base Rent', value: 'KES ${tenant.baseRent.toStringAsFixed(0)}'),
+                      Container(width: 1, height: 24, color: colors.borderSubtle),
+                      _MiniStat(label: 'Service', value: 'KES ${tenant.serviceCharge.toStringAsFixed(0)}'),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.calendar_today, size: 13, color: Colors.grey.shade500),
+                      const SizedBox(width: 4),
+                      Text('Due: ${_dayText(rentDueDay)} of each month',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: tenant.whatsappEnabled ? colors.brandGreenLight : colors.chipBackground,
+                          borderRadius: BorderRadius.circular(99),
+                        ),
+                        child: Text(
+                          tenant.whatsappEnabled ? 'WhatsApp ON' : 'WhatsApp OFF',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: tenant.whatsappEnabled ? colors.brandGreen : Colors.grey,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      tenant.name,
-                      style: Theme.of(context).textTheme.titleLarge,
-                    ),
-                    if (unit != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        'Unit ${unit!.unitNumber}',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
                     ],
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
 
-            // Contact info
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Contact Information',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _InfoRow(
-                      icon: Icons.phone,
-                      label: 'Phone',
-                      value: tenant.phone,
-                    ),
-                    if (tenant.email != null) ...[
-                      const Divider(),
-                      _InfoRow(
-                        icon: Icons.email,
-                        label: 'Email',
-                        value: tenant.email!,
-                      ),
-                    ],
-                    const Divider(),
-                    _InfoRow(
-                      icon: tenant.whatsappEnabled
-                          ? Icons.check_circle
-                          : Icons.cancel,
-                      label: 'WhatsApp',
-                      value: tenant.whatsappEnabled ? 'Enabled' : 'Disabled',
-                      valueColor: tenant.whatsappEnabled
-                          ? Colors.green
-                          : Colors.grey,
-                    ),
+            // ── Contact info ──
+            Container(
+              decoration: BoxDecoration(
+                color: colors.cardBackground,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: colors.borderSubtle),
+              ),
+              child: Column(
+                children: [
+                  _ContactRow(icon: Icons.phone, label: 'Phone', value: tenant.phone),
+                  if (tenant.email != null) ...[
+                    Divider(height: 1, indent: 50, color: colors.borderSubtle),
+                    _ContactRow(icon: Icons.email, label: 'Email', value: tenant.email!),
                   ],
-                ),
+                ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // Rent details
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Rent Details',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _InfoRow(
-                      icon: Icons.home,
-                      label: 'Base Rent',
-                      value: 'KES ${tenant.baseRent.toStringAsFixed(0)}',
-                    ),
-                    const Divider(),
-                    _InfoRow(
-                      icon: Icons.build,
-                      label: 'Service Charge',
-                      value: 'KES ${tenant.serviceCharge.toStringAsFixed(0)}',
-                    ),
-                    const Divider(),
-                    _InfoRow(
-                      icon: Icons.calendar_today,
-                      label: 'Due Day',
-                      value: '${_getDayText(rentDueDay)} of each month',
-                    ),
-                    const Divider(),
-                    _InfoRow(
-                      icon: Icons.receipt_long,
-                      label: 'Total Monthly',
-                      value:
-                          'KES ${tenant.totalMonthlyBill.toStringAsFixed(0)}',
-                      valueBold: true,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Balance card
-            Card(
-              color: balance <= 0
-                  ? Colors.green.withValues(alpha: 0.1)
-                  : Colors.red.withValues(alpha: 0.1),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  children: [
-                    Text(
-                      'Current Balance',
-                      style: Theme.of(context).textTheme.titleSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'KES ${balance.toStringAsFixed(0)}',
-                      style: Theme.of(context).textTheme.headlineMedium
-                          ?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: balanceColor,
-                          ),
-                    ),
-                    Text(
-                      balance <= 0 ? 'All paid up' : 'Outstanding',
-                      style: TextStyle(color: balanceColor),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Record Payment button
+            // ── Actions ──
             SizedBox(
               width: double.infinity,
-              height: 48,
+              height: 50,
               child: FilledButton.icon(
                 onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => RecordPaymentScreen(
-                        tenant: tenant,
-                        onPaymentRecorded: () {},
-                      ),
-                    ),
-                  );
+                  Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => RecordPaymentScreen(tenant: tenant, onPaymentRecorded: () {})));
                 },
-                icon: const Icon(Icons.payments),
-                label: const Text('Record Payment'),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Transaction history button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => TransactionHistoryScreen(tenant: tenant),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.history),
-                label: const Text('View Payment History'),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-<<<<<<< HEAD
-            // WhatsApp buttons
-            if (tenant.whatsappEnabled) ...[
-              // Send Reminder
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: FilledButton.tonalIcon(
-                  onPressed: () async {
-                    final propertyName = unit != null
-                        ? 'Property' // We don't have property name here, could pass it
-                        : 'your building';
-                    final message = WhatsAppService.reminderMessage(
-                      name: tenant.name,
-                      unitNumber: unit?.unitNumber ?? 'N/A',
-                      propertyName: propertyName,
-                      dueDay: rentDueDay,
-                      totalDue: tenant.totalMonthlyBill + (tenant.openingBalance > 0 ? tenant.openingBalance : 0),
-                    );
-                    final success = await WhatsAppService.sendMessage(
-                      tenant.phone,
-                      message,
-                    );
-                    if (!success && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Could not open WhatsApp')),
-                      );
-                    }
-                  },
-                  icon: const Icon(Icons.notifications),
-                  label: const Text('Send Reminder'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.brandGreen,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
+                icon: const Icon(Icons.payments),
+                label: const Text('Record Payment', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               ),
-              const SizedBox(height: 8),
+            ),
+            const SizedBox(height: 10),
 
-              // Overdue Nudge (only if balance > 0)
-              if (tenant.openingBalance > 0)
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: () async {
+            Container(
+              decoration: BoxDecoration(
+                color: colors.cardBackground,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: colors.borderSubtle),
+              ),
+              child: Column(
+                children: [
+                  _ActionRow(icon: Icons.history, label: 'Payment History', onTap: () {
+                    Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => TransactionHistoryScreen(tenant: tenant)));
+                  }),
+                  if (tenant.whatsappEnabled) ...[
+                    Divider(height: 1, indent: 50, color: colors.borderSubtle),
+                    _ActionRow(icon: Icons.notifications, label: 'Send Reminder', onTap: () async {
+                      final message = WhatsAppService.reminderMessage(
+                        name: tenant.name,
+                        unitNumber: unit?.unitNumber ?? 'N/A',
+                        propertyName: propertyName ?? 'your building',
+                        dueDay: rentDueDay,
+                        totalDue: monthlyBill + (balance > 0 ? balance : 0),
+                        paymentInstructions: paymentInstructions,
+                      );
+                      await WhatsAppService.sendMessage(tenant.phone, message);
+                    }),
+                  ],
+                  if (tenant.whatsappEnabled && balance > 0) ...[
+                    Divider(height: 1, indent: 50, color: colors.borderSubtle),
+                    _ActionRow(icon: Icons.warning_amber, label: 'Send Overdue Nudge', iconColor: Colors.orange, onTap: () async {
                       final now = DateTime.now();
                       final dueDate = DateTime(now.year, now.month, rentDueDay);
-                      final daysOverdue = now.day > rentDueDay
-                          ? now.difference(dueDate).inDays
-                          : 0;
-
+                      final daysOverdue = now.day > rentDueDay ? now.difference(dueDate).inDays : 0;
                       final message = WhatsAppService.overdueMessage(
                         name: tenant.name,
                         unitNumber: unit?.unitNumber ?? 'N/A',
                         daysOverdue: daysOverdue,
-                        balance: tenant.openingBalance,
+                        balance: balance,
+                        paymentInstructions: paymentInstructions,
                       );
-                      final success = await WhatsAppService.sendMessage(
-                        tenant.phone,
-                        message,
-                      );
-                      if (!success && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Could not open WhatsApp')),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.warning_amber),
-                    label: const Text('Send Overdue Nudge'),
-                    style: FilledButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                    ),
-                  ),
-                ),
-            ] else ...[
-              // WhatsApp disabled warning
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.grey.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'WhatsApp reminders are disabled for this tenant.',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Colors.grey,
-                            ),
+                      await WhatsAppService.sendMessage(tenant.phone, message);
+                    }),
+                  ],
+                  if (!tenant.whatsappEnabled) ...[
+                    Divider(height: 1, indent: 50, color: colors.borderSubtle),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, size: 18, color: Colors.grey),
+                          SizedBox(width: 10),
+                          Text('WhatsApp disabled for this tenant', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                        ],
                       ),
                     ),
                   ],
-                ),
-              ),
-            ],
-=======
-            // WhatsApp nudge button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: FilledButton.tonalIcon(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('WhatsApp reminders coming soon!'),
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.thumb_up),
-                label: const Text('Send WhatsApp Nudge'),
+                ],
               ),
             ),
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
+            const SizedBox(height: 30),
           ],
         ),
       ),
     );
   }
 
-  String _getDayText(int day) {
+  static String _dayText(int day) {
     if (day == 1) return '1st';
     if (day == 2) return '2nd';
     if (day == 3) return '3rd';
@@ -359,37 +292,72 @@ class TenantProfileScreen extends StatelessWidget {
   }
 }
 
-class _InfoRow extends StatelessWidget {
-  final IconData icon;
+class _MiniStat extends StatelessWidget {
   final String label;
   final String value;
-  final Color? valueColor;
-  final bool valueBold;
-
-  const _InfoRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.valueColor,
-    this.valueBold = false,
-  });
+  const _MiniStat({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 20, color: Colors.grey),
-        const SizedBox(width: 12),
-        Text(label, style: Theme.of(context).textTheme.bodyMedium),
-        const Spacer(),
-        Text(
-          value,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            fontWeight: valueBold ? FontWeight.bold : null,
-            color: valueColor,
-          ),
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ContactRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  const _ContactRow({required this.icon, required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Colors.grey.shade500),
+          const SizedBox(width: 12),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          const Spacer(),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color? iconColor;
+  final VoidCallback onTap;
+  const _ActionRow({required this.icon, required this.label, this.iconColor, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.kt;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: iconColor ?? colors.brandGreen),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500))),
+            Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+          ],
         ),
-      ],
+      ),
     );
   }
 }

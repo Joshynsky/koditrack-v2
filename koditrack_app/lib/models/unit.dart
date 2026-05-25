@@ -1,6 +1,7 @@
 class Unit {
   final String id;
   final String propertyId;
+  final String? block;        // ← ADD
   final String unitNumber;
   final int? floor;
   final String? unitType;
@@ -12,6 +13,7 @@ class Unit {
   Unit({
     required this.id,
     required this.propertyId,
+    this.block,               // ← ADD
     required this.unitNumber,
     this.floor,
     this.unitType,
@@ -25,6 +27,7 @@ class Unit {
     return Unit(
       id: json['id'],
       propertyId: json['property_id'],
+      block: json['block'],   // ← ADD
       unitNumber: json['unit_number'],
       floor: json['floor'],
       unitType: json['unit_type'],

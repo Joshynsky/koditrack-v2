@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'onboarding/onboarding_shell.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'home_screen.dart';
+import '../providers/settings_provider.dart';
+import '../providers/property_provider.dart';
+import 'onboarding/onboarding_intro.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,7 +27,16 @@ class _LoginScreenState extends State<LoginScreen> {
       final password = _passwordController.text.trim();
 
       if (_isSignUp) {
-        // Sign up
+        // Step 1: Show onboarding intro
+        if (mounted) setState(() => _loading = false);
+        final onboardDone = await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const OnboardingIntro()),
+        );
+        if (onboardDone != true || !mounted) return;
+
+        // Step 2: Sign up
+        setState(() => _loading = true);
         final response = await Supabase.instance.client.auth.signUp(
           email: email,
           password: password,
@@ -31,20 +44,25 @@ class _LoginScreenState extends State<LoginScreen> {
         );
 
         if (response.user != null) {
-          // Create profile
           await Supabase.instance.client.from('user_profiles').insert({
             'id': response.user!.id,
             'full_name': _nameController.text.trim(),
+            'onboarding_completed': false,
           });
 
+          await context.read<SettingsProvider>().ensureProfile();
+
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Account created! You can now login.'),
+            await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => OnboardingShell(
+                  onComplete: () {},
+                ),
               ),
             );
-            setState(() => _isSignUp = false);
           }
+          // Auth state change will navigate to AppShell
         }
       } else {
         // Login
@@ -52,25 +70,18 @@ class _LoginScreenState extends State<LoginScreen> {
           email: email,
           password: password,
         );
-
         if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-          );
+          await context.read<SettingsProvider>().ensureProfile();
+          await context.read<PropertyProvider>().fetchProperties();
         }
       }
     } on AuthException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -103,9 +114,9 @@ class _LoginScreenState extends State<LoginScreen> {
               Text(
                 'Koditrack',
                 style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
-                  fontWeight: FontWeight.bold,
-                ),
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 8),
               Text(

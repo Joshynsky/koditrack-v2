@@ -5,9 +5,9 @@ import '../models/payment.dart';
 import '../providers/property_provider.dart';
 
 class TransactionHistoryScreen extends StatefulWidget {
-  final Tenant tenant;
+  final Tenant? tenant;
 
-  const TransactionHistoryScreen({super.key, required this.tenant});
+  const TransactionHistoryScreen({super.key, this.tenant});
 
   @override
   State<TransactionHistoryScreen> createState() =>
@@ -19,14 +19,22 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<PropertyProvider>().fetchPayments(widget.tenant.id);
+      if (widget.tenant != null) {
+        context.read<PropertyProvider>().fetchPayments(widget.tenant!.id);
+      } else {
+        context.read<PropertyProvider>().fetchAllPayments();
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.tenant.name} - Payments')),
+            appBar: AppBar(
+        title: Text(widget.tenant != null 
+            ? '${widget.tenant!.name} - Payments' 
+            : 'All Payments'),
+      ),
       body: Consumer<PropertyProvider>(
         builder: (context, provider, _) {
           if (provider.loading && provider.selectedTenantPayments.isEmpty) {
@@ -58,7 +66,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           }
 
           // Calculate running balance
-          double runningBalance = widget.tenant.openingBalance;
+          double runningBalance = widget.tenant?.openingBalance ?? 0;
 
           return ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -83,6 +91,7 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
   }
 
   Widget _buildHeader() {
+    if (widget.tenant == null) return const SizedBox.shrink();
     return Card(
       color: Theme.of(context).colorScheme.primaryContainer,
       child: Padding(
@@ -92,14 +101,12 @@ class _TransactionHistoryScreenState extends State<TransactionHistoryScreen> {
           children: [
             _HeaderItem(
               label: 'Monthly Bill',
-              value: 'KES ${widget.tenant.totalMonthlyBill.toStringAsFixed(0)}',
+              value: 'KES ${widget.tenant!.totalMonthlyBill.toStringAsFixed(0)}',
             ),
             _HeaderItem(
               label: 'Balance',
-              value: 'KES ${widget.tenant.openingBalance.toStringAsFixed(0)}',
-              color: widget.tenant.openingBalance > 0
-                  ? Colors.red
-                  : Colors.green,
+              value: 'KES ${widget.tenant!.openingBalance.toStringAsFixed(0)}',
+              color: widget.tenant!.openingBalance > 0 ? Colors.red : Colors.green,
             ),
           ],
         ),

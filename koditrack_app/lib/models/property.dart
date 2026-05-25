@@ -5,6 +5,7 @@ class Property {
   final String? type;
   final String? address;
   final int rentDueDay;
+  final String? paymentMethodId;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -15,6 +16,7 @@ class Property {
     this.type,
     this.address,
     this.rentDueDay = 5,
+    this.paymentMethodId,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -27,6 +29,7 @@ class Property {
       type: json['type'],
       address: json['address'],
       rentDueDay: json['rent_due_day'] ?? 5,
+      paymentMethodId: json['payment_method_id'] as String?,
       createdAt: DateTime.parse(json['created_at']),
       updatedAt: DateTime.parse(json['updated_at']),
     );
@@ -38,6 +41,7 @@ class Property {
       'type': type,
       'address': address,
       'rent_due_day': rentDueDay,
+      if (paymentMethodId != null) 'payment_method_id': paymentMethodId,
     };
   }
 }

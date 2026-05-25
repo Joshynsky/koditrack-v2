@@ -3,7 +3,11 @@
 # KodiTrack Simulation Lab v3
 PROJECT_URL="https://kkrprfwflyafxvxcvcxi.supabase.co"
 FUNCTION_URL="$PROJECT_URL/functions/v1/mock-mpesa-service"
-ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtrcnByZndmbHlhZnh2eGN2Y3hpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3Njk4Mjc4NiwiZXhwIjoyMDkyNTU4Nzg2fQ.gi52YOomcG7MzqrsYmPtOXyMTAyM49qJjdLcBzjMtlY"
+# Load from .env file
+if [ -f .env ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+ANON_KEY="${SUPABASE_SERVICE_ROLE_KEY}"
 AUTH_HEADER="apikey: $ANON_KEY"
 BEARER_HEADER="Authorization: Bearer $ANON_KEY"
 

@@ -31,11 +31,14 @@ class WhatsAppService {
     required String propertyName,
     required int dueDay,
     required double totalDue,
+    String? paymentInstructions,
   }) {
     final dueText = _dayText(dueDay);
+    final payText = paymentInstructions != null && paymentInstructions.isNotEmpty
+        ? ' Pay via: $paymentInstructions.'
+        : ' Please pay via M-Pesa to the landlord.';
     return 'Hi $name, rent for Unit $unitNumber ($propertyName) is due on the $dueText. '
-        'Total amount due is KES ${totalDue.toStringAsFixed(0)}. '
-        'Please pay via M-Pesa to the landlord. Thank you!';
+        'Total amount due is KES ${totalDue.toStringAsFixed(0)}.$payText Thank you!';
   }
 
   /// Overdue nudge for late payment
@@ -44,10 +47,14 @@ class WhatsAppService {
     required String unitNumber,
     required int daysOverdue,
     required double balance,
+    String? paymentInstructions,
   }) {
+    final payText = paymentInstructions != null && paymentInstructions.isNotEmpty
+        ? ' Pay via: $paymentInstructions.'
+        : ' Pay via M-Pesa.';
     return 'Urgent: $name, your rent for Unit $unitNumber is overdue by $daysOverdue days. '
         'Please settle the balance of KES ${balance.toStringAsFixed(0)} '
-        'to avoid further action. Pay via M-Pesa.';
+        'to avoid further action.$payText';
   }
 
   /// Receipt after payment is recorded

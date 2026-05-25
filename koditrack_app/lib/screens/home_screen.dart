@@ -1,448 +1,889 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../models/property.dart';
-import '../providers/property_provider.dart';
-import 'create_property_screen.dart';
-import 'property_detail_screen.dart';
-<<<<<<< HEAD
-import '../services/whatsapp_service.dart';
+import '../models/payment.dart';
 import '../models/tenant.dart';
-=======
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
+import '../providers/payment_method_provider.dart';
+import '../providers/property_provider.dart';
+import '../providers/settings_provider.dart';
+import '../services/supabase_service.dart';
+import '../services/whatsapp_service.dart';
+import '../theme/koditrack_theme.dart';
+import '../utils/user_display.dart';
+import 'transaction_history_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() => HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-<<<<<<< HEAD
+class HomeScreenState extends State<HomeScreen> {
   double _expected = 0;
   double _received = 0;
+  final List<_OverdueItem> _overdueItems = [];
+  List<Payment> _recentPayments = [];
+  bool _activityLoading = false;
+  bool _isVisible = true;
 
-=======
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-<<<<<<< HEAD
+      context.read<SettingsProvider>().fetchProfile();
       _loadData();
+      _startAutoRefresh();
     });
   }
 
-  Future<void> _loadData() async {
-    final provider = context.read<PropertyProvider>();
-    await provider.fetchProperties();
-    final summary = await provider.getMonthlySummary();
-    if (mounted) {
-      setState(() {
-        _expected = summary['expected'] ?? 0;
-        _received = summary['received'] ?? 0;
-      });
-    }
+  void onTabActive() {
+    _isVisible = true;
+    _loadData();
+    _startAutoRefresh();
   }
 
-  Future<void> _showOverdueDialog() async {
-    final provider = context.read<PropertyProvider>();
-    
-    // Collect all overdue tenants
-    final now = DateTime.now();
-    final overdueTenants = <Map<String, dynamic>>[];
+  void onTabInactive() {
+    _isVisible = false;
+  }
 
+  void _startAutoRefresh() {
+    Future.delayed(const Duration(seconds: 30), () async {
+      if (mounted) {
+        if (_isVisible) {
+          await _loadData();
+        }
+        _startAutoRefresh();
+      }
+    });
+  }
+
+  Map<String, double>? _cachedSummary;
+  DateTime? _summaryLastFetched;
+
+  Future<void> _loadData() async {
+    _isVisible = true;
+    final provider = context.read<PropertyProvider>();
+    await provider.fetchProperties();
+
+    // ── Cache: skip heavy summary if fresh (<60s) ──
+    Map<String, double> summary;
+    if (_cachedSummary != null &&
+        _summaryLastFetched != null &&
+        DateTime.now().difference(_summaryLastFetched!).inSeconds < 60) {
+      summary = _cachedSummary!;
+    } else {
+      summary = await provider.getMonthlySummary();
+      _cachedSummary = summary;
+      _summaryLastFetched = DateTime.now();
+    }
+
+    // Overdue items
+    final now = DateTime.now();
+    final overdue = <_OverdueItem>[];
     for (final property in provider.properties) {
       await provider.fetchTenants(property.id);
-      
       for (final tenant in provider.selectedPropertyTenants) {
-        if (tenant.openingBalance > 0 && tenant.whatsappEnabled) {
+        if (tenant.openingBalance > 0) {
           final dueDate = DateTime(now.year, now.month, property.rentDueDay);
           final daysOverdue = now.day > property.rentDueDay
               ? now.difference(dueDate).inDays
               : 0;
-          
           if (daysOverdue > 0) {
-            // Find unit name
-            String unitName = 'N/A';
-            try {
-              await provider.fetchUnits(property.id);
-              final unit = provider.selectedPropertyUnits
-                  .where((u) => u.id == tenant.unitId)
-                  .firstOrNull;
-              if (unit != null) unitName = unit.unitNumber;
-            } catch (_) {}
-            
-            overdueTenants.add({
-              'tenant': tenant,
-              'propertyName': property.name,
-              'unitName': unitName,
-              'daysOverdue': daysOverdue,
-              'rentDueDay': property.rentDueDay,
-            });
+            overdue.add(_OverdueItem(
+              tenant: tenant,
+              propertyName: property.name,
+              unitName: 'N/A',
+              daysOverdue: daysOverdue,
+              paymentMethodId: property.paymentMethodId,
+            ));
           }
         }
       }
     }
+    overdue.sort((a, b) => b.daysOverdue.compareTo(a.daysOverdue));
 
-    if (!mounted) return;
+    final payments = await _fetchRecentPayments();
 
-    if (overdueTenants.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No overdue tenants — everyone is up to date! 🎉')),
-      );
-      return;
+    if (mounted) {
+      setState(() {
+        _expected = summary['expected'] ?? 0;
+        _received = summary['received'] ?? 0;
+        _overdueItems
+          ..clear()
+          ..addAll(overdue);
+        _recentPayments = payments;
+      });
     }
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Overdue Tenants (${overdueTenants.length})'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: overdueTenants.length,
-            itemBuilder: (_, index) {
-              final item = overdueTenants[index];
-              final tenant = item['tenant'] as Tenant;
-              
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: CircleAvatar(
-                  backgroundColor: Colors.orange.withValues(alpha: 0.2),
-                  child: const Icon(Icons.warning, color: Colors.orange),
-                ),
-                title: Text(tenant.name),
-                subtitle: Text(
-                  'Unit ${item['unitName']} · ${item['daysOverdue']} days overdue\n'
-                  'Owes: KES ${tenant.openingBalance.toStringAsFixed(0)}',
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: () async {
-                    final message = WhatsAppService.overdueMessage(
-                      name: tenant.name,
-                      unitNumber: item['unitName'],
-                      daysOverdue: item['daysOverdue'],
-                      balance: tenant.openingBalance,
-                    );
-                    await WhatsAppService.sendMessage(tenant.phone, message);
-                  },
-                ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
-    );
   }
+
+  Future<List<Payment>> _fetchRecentPayments() async {
+    setState(() => _activityLoading = true);
+    try {
+      final data = await SupabaseService.client
+          .from('payments')
+          .select()
+          .order('payment_date', ascending: false)
+          .limit(4);
+      return data.map((json) => Payment.fromJson(json)).toList();
+    } catch (e) {
+      debugPrint('Error fetching recent payments: $e');
+      return [];
+    } finally {
+      if (mounted) setState(() => _activityLoading = false);
+    }
+  }
+
+  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Koditrack'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.campaign),
-            tooltip: 'Nudge Overdue Tenants',
-            onPressed: _showOverdueDialog,
-          ),
-        ],
-      ),
-=======
-      context.read<PropertyProvider>().fetchProperties();
-    });
-  }
+    final kt = context.kt;
 
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Koditrack'), centerTitle: true),
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const CreatePropertyScreen()),
-          );
-<<<<<<< HEAD
-          if (mounted) _loadData();
-=======
-          if (mounted) {
-            context.read<PropertyProvider>().fetchProperties();
-          }
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Add Property'),
-      ),
+      backgroundColor: kt.pageBackground,
       body: Consumer<PropertyProvider>(
         builder: (context, provider, _) {
           if (provider.loading && provider.properties.isEmpty) {
             return const Center(child: CircularProgressIndicator());
           }
-
-<<<<<<< HEAD
           return RefreshIndicator(
             onRefresh: _loadData,
-            child: ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                // Money Gauge Card
-                if (_expected > 0) _buildMoneyGauge(),
-                if (_expected > 0) const SizedBox(height: 16),
-
-                // Properties
-                if (provider.properties.isEmpty)
-                  _buildEmptyState()
-                else
-                  ...provider.properties.map(
-                    (property) => _PropertyCard(property: property),
-                  ),
-              ],
-            ),
-          );
-=======
-          if (provider.properties.isEmpty) {
-            return _buildEmptyState();
-          }
-
-          return _buildPropertyList(provider.properties);
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
-        },
-      ),
-    );
-  }
-
-<<<<<<< HEAD
-  Widget _buildMoneyGauge() {
-    final progress = _expected > 0 ? (_received / _expected).clamp(0.0, 1.0) : 0.0;
-    final percentage = (progress * 100).round();
-    final remaining = _expected - _received;
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            Text(
-              'This Month',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: 140,
-              height: 140,
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    width: 140,
-                    height: 140,
-                    child: CircularProgressIndicator(
-                      value: progress,
-                      strokeWidth: 12,
-                      backgroundColor:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
-                      color: progress >= 1
-                          ? Colors.green
-                          : Theme.of(context).colorScheme.primary,
+            child: CustomScrollView(
+              slivers: [
+                _buildAppBar(context),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
+                        if (_expected > 0) _buildFinancialSection(context),
+                        const SizedBox(height: 24),
+                        _buildNeedsAttentionSection(context),
+                        const SizedBox(height: 24),
+                        _buildRecentActivitySection(context),
+                        const SizedBox(height: 100),
+                      ],
                     ),
                   ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$percentage%',
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      Text(
-                        'collected',
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _GaugeStat(
-                  label: 'Expected',
-                  value: 'KES ${_expected.toStringAsFixed(0)}',
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                _GaugeStat(
-                  label: 'Received',
-                  value: 'KES ${_received.toStringAsFixed(0)}',
-                  color: Colors.green,
-                ),
-                _GaugeStat(
-                  label: 'Remaining',
-                  value: 'KES ${remaining > 0 ? remaining.toStringAsFixed(0) : '0'}',
-                  color: remaining > 0 ? Colors.orange : Colors.green,
                 ),
               ],
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-=======
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.apartment_outlined,
-              size: 80,
-<<<<<<< HEAD
-              color: Theme.of(context)
-                  .colorScheme
-                  .primary
-                  .withValues(alpha: 0.4),
-=======
-              color: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: 0.4),
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No properties yet',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Tap the button below to add your first property',
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-<<<<<<< HEAD
-}
-
-class _GaugeStat extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _GaugeStat({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: color,
-            fontSize: 13,
-          ),
-        ),
-        Text(
-          label,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-=======
-
-  Widget _buildPropertyList(List<Property> properties) {
-    return RefreshIndicator(
-      onRefresh: () => context.read<PropertyProvider>().fetchProperties(),
-      child: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: properties.length,
-        itemBuilder: (context, index) {
-          final property = properties[index];
-          return _PropertyCard(property: property);
+          );
         },
       ),
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
     );
   }
-}
 
-class _PropertyCard extends StatelessWidget {
-  final Property property;
+  // ─── App Bar ──────────────────────────────────────────────────────────────
 
-  const _PropertyCard({required this.property});
+  SliverAppBar _buildAppBar(BuildContext context) {
+    final kt = context.kt;
+    final displayName = resolveUserFirstName(context);
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-          child: Icon(
-            Icons.apartment,
-            color: Theme.of(context).colorScheme.primary,
-          ),
-        ),
-        title: Text(
-          property.name,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        subtitle: Column(
+    return SliverAppBar(
+      expandedHeight: 88,
+      floating: true,
+      snap: true,
+      backgroundColor: kt.pageBackground,
+      surfaceTintColor: Colors.transparent,
+      elevation: 0,
+      flexibleSpace: FlexibleSpaceBar(
+        titlePadding: const EdgeInsets.fromLTRB(18, 0, 18, 14),
+        title: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (property.type != null) Text(property.type!),
-            if (property.address != null) Text(property.address!),
+            Text(
+              'Welcome back,',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.cs.onSurfaceVariant,
+                  ),
+            ),
+            Text(
+              displayName,
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
           ],
         ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PropertyDetailScreen(property: property),
-            ),
-<<<<<<< HEAD
-          ).then((_) {
-            // Refresh when coming back
-            final provider = context.read<PropertyProvider>();
-            provider.fetchProperties();
-          });
-=======
-          );
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
-        },
       ),
     );
   }
-<<<<<<< HEAD
+
+  // ─── Section A: Financial Command Center ─────────────────────────────────
+
+  Widget _buildFinancialSection(BuildContext context) {
+    final kt = context.kt;
+    final progress = _expected > 0
+        ? (_received / _expected).clamp(0.0, 1.0)
+        : 0.0;
+    final percentage = (progress * 100).round();
+    final remaining = (_expected - _received).clamp(0.0, double.infinity);
+    final now = DateTime.now();
+    final monthLabel =
+        '${_monthName(now.month)} ${now.year}';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: kt.cardBackground,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kt.borderSubtle),
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Month pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: kt.chipBackground,
+              borderRadius: BorderRadius.circular(99),
+              border: Border.all(color: kt.borderSubtle),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.calendar_today_outlined,
+                    size: 12, color: context.cs.onSurfaceVariant),
+                const SizedBox(width: 5),
+                Text(
+                  monthLabel,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 18),
+
+          // Gauge row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Circular gauge
+              SizedBox(
+                width: 88,
+                height: 88,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 88,
+                      height: 88,
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: progress),
+                        duration: const Duration(milliseconds: 1200),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, value, _) {
+                          final animatedPct = (value * 100).round();
+                          return Stack(
+                            alignment: Alignment.center,
+                            children: [
+                              SizedBox(
+                                width: 88,
+                                height: 88,
+                                child: CircularProgressIndicator(
+                                  value: value,
+                                  strokeWidth: 9,
+                                  strokeCap: StrokeCap.round,
+                                  backgroundColor: kt.chipBackground,
+                                  color: kt.accentTeal,
+                                ),
+                              ),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    '$animatedPct%',
+                                    style: TextStyle(
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.w700,
+                                      color: kt.accentTeal,
+                                      height: 1,
+                                    ),
+                                  ),
+                                  Text(
+                                    'collected',
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 10),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 18),
+
+              // Numbers
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: _received),
+                      duration: const Duration(milliseconds: 1500),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, value, _) {
+                        return Text(
+                          'KES ${_fmt(value)}',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700,
+                            color: kt.accentTealDark,
+                            height: 1,
+                          ),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'received this month',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'of KES ${_fmt(_expected)} expected',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            fontSize: 11,
+                            color: context.cs.onSurfaceVariant.withValues(alpha: 0.8),
+                          ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Split cards
+          Row(
+            children: [
+              Expanded(
+                child: _SplitCard(
+                  label: 'Collected',
+                  amount: _received,
+                  bgColor: kt.accentTealLight,
+                  labelColor: kt.accentTealDark,
+                  amountColor: kt.accentTealDark,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _SplitCard(
+                  label: 'Outstanding',
+                  amount: remaining,
+                  bgColor: remaining > 0 ? kt.accentAmberLight : kt.accentTealLight,
+                  labelColor: remaining > 0 ? kt.accentAmberDark : kt.accentTealDark,
+                  amountColor: remaining > 0 ? kt.accentAmberDark : kt.accentTealDark,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── Section B: Needs Attention Carousel ─────────────────────────────────
+
+  Widget _buildNeedsAttentionSection(BuildContext context) {
+    final kt = context.kt;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 16, color: kt.accentRed),
+            const SizedBox(width: 6),
+            Text(
+              'Needs attention',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+            const Spacer(),
+            if (_overdueItems.isNotEmpty)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: kt.accentRedLight,
+                  borderRadius: BorderRadius.circular(99),
+                ),
+                child: Text(
+                  '${_overdueItems.length} overdue',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: kt.accentRedDark,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (_overdueItems.isEmpty)
+          _buildAllClearCard(context)
+        else
+          SizedBox(
+            height: 200,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              clipBehavior: Clip.none,
+              itemCount: _overdueItems.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, index) =>
+                  _buildOverdueCard(context, _overdueItems[index]),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildAllClearCard(BuildContext context) {
+    final kt = context.kt;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 600),
+      curve: Curves.elasticOut,
+      builder: (context, value, child) {
+        return Transform.scale(
+          scale: value,
+          child: child,
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: kt.accentTealLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: kt.accentTeal.withValues(alpha: 0.2)),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: kt.accentTeal, size: 22),
+            const SizedBox(width: 10),
+            Text(
+              'All rent flows are up to date!',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: kt.accentTealDark,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOverdueCard(BuildContext context, _OverdueItem item) {
+    final kt = context.kt;
+    final isUrgent = item.daysOverdue >= 10;
+    final accentColor = isUrgent ? kt.accentRed : kt.accentAmber;
+    final accentLight = isUrgent ? kt.accentRedLight : kt.accentAmberLight;
+    final accentDark = isUrgent ? kt.accentRedDark : kt.accentAmberDark;
+    final initials = item.tenant.name
+        .split(' ')
+        .take(2)
+        .map((w) => w.isNotEmpty ? w[0].toUpperCase() : '')
+        .join();
+
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kt.cardBackground,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isUrgent
+              ? kt.accentRed.withValues(alpha: 0.35)
+              : kt.borderSubtle,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Tenant row
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: accentLight,
+                child: Text(
+                  initials,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: accentDark,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.tenant.name,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      'Unit ${item.unitName} · ${item.propertyName}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Amount — the hero number
+          Text(
+            'KES ${_fmt(item.tenant.openingBalance)}',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: accentColor,
+              height: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: accentLight,
+              borderRadius: BorderRadius.circular(99),
+            ),
+            child: Text(
+              '${item.daysOverdue} days overdue',
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: accentDark,
+              ),
+            ),
+          ),
+          const Spacer(),
+
+          // Full-width nudge button
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: item.tenant.whatsappEnabled
+                  ? () => _sendNudge(item)
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: kt.accentTeal,
+                foregroundColor: kt.onPrimaryButton,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              icon: const Icon(Icons.send, size: 14),
+              label: const Text('Send reminder · WhatsApp'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _sendNudge(_OverdueItem item) async {
+    final pay = context.read<PaymentMethodProvider>().getById(item.paymentMethodId);
+    final message = WhatsAppService.overdueMessage(
+      name: item.tenant.name,
+      unitNumber: item.unitName,
+      daysOverdue: item.daysOverdue,
+      balance: item.tenant.openingBalance,
+      paymentInstructions: pay?.paymentInstructions,
+    );
+    await WhatsAppService.sendMessage(item.tenant.phone, message);
+  }
+
+  // ─── Section C: Recent Activity ──────────────────────────────────────────
+
+  Widget _buildRecentActivitySection(BuildContext context) {
+    final kt = context.kt;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              decoration: BoxDecoration(
+                color: kt.accentTeal,
+                shape: BoxShape.circle,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Recent activity',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Container(
+          decoration: BoxDecoration(
+            color: kt.cardBackground,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: kt.borderSubtle),
+          ),
+          child: _activityLoading && _recentPayments.isEmpty
+              ? Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                      child: CircularProgressIndicator(
+                    color: kt.accentTeal,
+                    strokeWidth: 2,
+                  )),
+                )
+              : _recentPayments.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        'No payments recorded yet.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    )
+                  : Column(
+                      children: [
+                        ..._recentPayments
+                            .map((p) => _buildActivityRow(context, p)),
+                        _buildViewAllRow(context),
+                      ],
+                    ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityRow(BuildContext context, Payment payment) {
+    final kt = context.kt;
+    final isMpesa = (payment.paymentMethod ?? '')
+        .toLowerCase()
+        .contains('mpesa');
+    final iconColor = isMpesa ? kt.accentTeal : kt.accentBlue;
+    final iconBg = isMpesa ? kt.accentTealLight : kt.accentBlueLight;
+    final icon =
+        isMpesa ? Icons.phone_android_outlined : Icons.payments_outlined;
+    final timeLabel = _relativeTime(payment.paymentDate);
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: iconBg,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: iconColor, size: 17),
+              ),
+              const SizedBox(width: 11),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      payment.reference ?? 'Payment',
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w500),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      '${payment.paymentMethod ?? 'Payment'} · $timeLabel',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              Text(
+                '+${_fmt(payment.amount)}',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: kt.accentTealDark,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Divider(height: 1, indent: 14, endIndent: 14, color: kt.borderSubtle),
+      ],
+    );
+  }
+
+  Widget _buildViewAllRow(BuildContext context) {
+    final onVariant = context.cs.onSurfaceVariant;
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => const TransactionHistoryScreen()),
+        );
+      },
+      borderRadius: const BorderRadius.vertical(bottom: Radius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'View all transactions',
+              style: TextStyle(fontSize: 13, color: onVariant),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.arrow_forward, size: 14, color: onVariant),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ─── Helpers ──────────────────────────────────────────────────────────────
+
+  String _fmt(double value) {
+    return value
+        .toStringAsFixed(0)
+        .replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (m) => '${m[1]},',
+        );
+  }
+
+  String _monthName(int month) {
+    const names = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return names[month - 1];
+  }
+
+  String _relativeTime(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    if (diff.inDays == 1) return 'Yesterday';
+    return '${diff.inDays} days ago';
+  }
 }
-=======
+
+// ─── Data class for overdue items ─────────────────────────────────────────────
+
+class _OverdueItem {
+  final Tenant tenant;
+  final String propertyName;
+  final String unitName;
+  final int daysOverdue;
+  final String? paymentMethodId;
+
+  const _OverdueItem({
+    required this.tenant,
+    required this.propertyName,
+    required this.unitName,
+    required this.daysOverdue,
+    this.paymentMethodId,
+  });
 }
->>>>>>> 21d3d737173cf0b9fb48c5ad6be502abfe9511ea
+
+// ─── Split card widget ────────────────────────────────────────────────────────
+
+class _SplitCard extends StatelessWidget {
+  final String label;
+  final double amount;
+  final Color bgColor;
+  final Color labelColor;
+  final Color amountColor;
+
+  const _SplitCard({
+    required this.label,
+    required this.amount,
+    required this.bgColor,
+    required this.labelColor,
+    required this.amountColor,
+  });
+
+  String _fmt(double v) => v
+      .toStringAsFixed(0)
+      .replaceAllMapped(
+        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+        (m) => '${m[1]},',
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _fmt(amount),
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              color: amountColor,
+            ),
+          ),
+          Text(
+            'KES',
+            style: TextStyle(fontSize: 10, color: labelColor),
+          ),
+        ],
+      ),
+    );
+  }
+}
